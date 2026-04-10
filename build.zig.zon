@@ -1,0 +1,18 @@
+.{
+    .name = .build_ggml,
+    .version = "0.0.0",
+    .fingerprint = 0x590698700f90f054,
+    .minimum_zig_version = "0.16.0-dev.3070+b22eb176b",
+    .dependencies = .{
+        .ggml = .{
+            .url = "https://github.com/ggml-org/ggml/archive/58c3805840b516b2a88ff867ccf7bb41dba79951.tar.gz",
+            .hash = "N-V-__8AAFNW_ACETcGqkTcn0Q4zNhvT4xJAsME08FO1wxPB",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "build",
+        "test",
+    },
+}

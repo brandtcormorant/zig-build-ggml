@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS (Metal + CPU + Accelerate)
+          - os: ubuntu-latest
+            name: Linux (CPU only)
+          - os: windows-latest
+            name: Windows (CPU only)
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Build
+        run: zig build
+
+      - name: Test
+        run: zig build test
+
+  build-x86-isa:
+    runs-on: ubuntu-latest
+    name: Linux (CPU + AVX2 + FMA)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Build with ISA flags
+        run: zig build -Dsse42=true -Davx=true -Davx2=true -Dfma=true -Df16c=true -Dbmi2=true
+
+      - name: Test
+        run: zig build test -Dsse42=true -Davx=true -Davx2=true -Dfma=true -Df16c=true -Dbmi2=true
+
+  build-llamafile:
+    runs-on: ubuntu-latest
+    name: Linux (CPU + llamafile)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Build with llamafile
+        run: zig build -Dllamafile=true
+
+      - name: Test
+        run: zig build test -Dllamafile=true
+
+  build-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS ReleaseFast
+          - os: ubuntu-latest
+            name: Linux ReleaseFast
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Build ReleaseFast
+        run: zig build -Doptimize=ReleaseFast
+
+      - name: Test ReleaseFast
+        run: zig build test -Doptimize=ReleaseFast
+
+  cross-compile:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-linux
+            name: Linux aarch64
+          - target: x86_64-linux
+            name: Linux x86_64
+          - target: x86_64-windows
+            name: Windows x86_64
+          - target: aarch64-macos
+            name: macOS aarch64 (CPU only)
+            extra: -Dmetal=false -Daccelerate=false
+          - target: riscv64-linux
+            name: Linux riscv64 (base only)
+            extra: -Dcpu-backend=false
+    name: Cross ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Cross-compile
+        run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.extra || '' }}
+
+  # TODO: iOS cross-compile needs per-target sysroot support in build.zig.
+  #   Zig's --sysroot flag applies globally, which breaks host build tools
+  #   (embed-metal) that need the host SDK. Fix: set sysroot on the library
+  #   compile step only, not via b.sysroot.
+  #
+  # TODO: Android cross-compile needs NDK sysroot for Bionic headers.
+  #   Same per-target sysroot issue as iOS.
