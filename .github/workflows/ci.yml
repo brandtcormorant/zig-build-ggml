@@ -118,10 +118,32 @@ jobs:
       - name: Cross-compile
         run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.extra || '' }}
 
-  # TODO: iOS cross-compile needs per-target sysroot support in build.zig.
-  #   Zig's --sysroot flag applies globally, which breaks host build tools
-  #   (embed-metal) that need the host SDK. Fix: set sysroot on the library
-  #   compile step only, not via b.sysroot.
-  #
-  # TODO: Android cross-compile needs NDK sysroot for Bionic headers.
-  #   Same per-target sysroot issue as iOS.
+  cross-ios:
+    runs-on: macos-latest
+    name: Cross iOS aarch64 (Metal + CPU)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Cross-compile for iOS
+        run: |
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          zig build -Dtarget=aarch64-ios -Dsysroot="$SDK_PATH" -Daccelerate=false
+
+  cross-android:
+    runs-on: ubuntu-latest
+    name: Cross Android aarch64 (CPU only)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Cross-compile for Android
+        run: |
+          NDK_SYSROOT="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          zig build -Dtarget=aarch64-linux-android -Dsysroot="$NDK_SYSROOT"

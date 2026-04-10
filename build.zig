@@ -42,6 +42,8 @@ pub fn build(b: *std.Build) void {
     const opt_amx_int8 = b.option(bool, "amx-int8", "Enable AMX-INT8") orelse false;
     const opt_amx_bf16 = b.option(bool, "amx-bf16", "Enable AMX-BF16") orelse false;
 
+    const opt_sysroot = b.option([]const u8, "sysroot", "System root for cross-compilation (iOS SDK path, Android NDK sysroot path)");
+
     const lib = b.addLibrary(.{
         .name = "ggml",
         .root_module = b.createModule(.{
@@ -61,6 +63,23 @@ pub fn build(b: *std.Build) void {
 
     var platform_flags: [8][]const u8 = undefined;
     var platform_flag_count: usize = 0;
+
+    if (opt_sysroot) |sr| {
+        mod.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sr}) });
+        if (is_darwin) {
+            mod.addFrameworkPath(.{ .cwd_relative = b.fmt("{s}/System/Library/Frameworks", .{sr}) });
+        }
+        if (is_android) {
+            const android_triple = switch (arch) {
+                .aarch64 => "aarch64-linux-android",
+                .x86_64 => "x86_64-linux-android",
+                .x86 => "i686-linux-android",
+                .arm, .thumb => "arm-linux-androideabi",
+                else => "aarch64-linux-android",
+            };
+            mod.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include/{s}", .{ sr, android_triple }) });
+        }
+    }
 
     if (is_openbsd) {
         platform_flags[platform_flag_count] = "-D_XOPEN_SOURCE=700";
