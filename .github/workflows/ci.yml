@@ -118,6 +118,53 @@ jobs:
       - name: Cross-compile
         run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.extra || '' }}
 
+  build-vulkan:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux Vulkan (CPU + Vulkan)
+          - os: macos-latest
+            name: macOS Vulkan (Metal + CPU + Vulkan)
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Build with Vulkan
+        run: zig build -Dvulkan=true
+
+      - name: Test with Vulkan
+        run: zig build test -Dvulkan=true
+
+  cross-vulkan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-linux
+            name: Linux x86_64 Vulkan
+          - target: aarch64-linux
+            name: Linux aarch64 Vulkan
+          - target: x86_64-windows
+            name: Windows x86_64 Vulkan
+    name: Cross ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.3070+b22eb176b
+
+      - name: Cross-compile with Vulkan
+        run: zig build -Dtarget=${{ matrix.target }} -Dvulkan=true
+
   cross-ios:
     runs-on: macos-latest
     name: Cross iOS aarch64 (Metal + CPU)

@@ -16,12 +16,12 @@ pub fn build(b: *std.Build) void {
     const is_openbsd = os == .openbsd;
     const is_windows = os == .windows;
 
-
     const opt_native = b.option(bool, "native", "Optimize for current CPU (-march=native)") orelse false;
 
     const opt_cpu = b.option(bool, "cpu-backend", "Enable CPU backend") orelse true;
     const opt_metal = b.option(bool, "metal", "Enable Metal backend") orelse (os == .macos or os == .ios);
     const opt_metal_embed = b.option(bool, "metal-embed-library", "Embed Metal shader library") orelse opt_metal;
+    const opt_vulkan = b.option(bool, "vulkan", "Enable Vulkan backend") orelse false;
 
     const opt_accelerate = b.option(bool, "accelerate", "Use Apple Accelerate framework") orelse is_darwin;
     const opt_llamafile = b.option(bool, "llamafile", "Enable llamafile SGEMM kernels") orelse false;
@@ -59,16 +59,16 @@ pub fn build(b: *std.Build) void {
     mod.addIncludePath(ggml.path("include"));
     mod.addIncludePath(ggml.path("src"));
 
-    // ── Platform flags ───────────────────────────────────────
-
     var platform_flags: [8][]const u8 = undefined;
     var platform_flag_count: usize = 0;
 
     if (opt_sysroot) |sr| {
         mod.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sr}) });
+
         if (is_darwin) {
             mod.addFrameworkPath(.{ .cwd_relative = b.fmt("{s}/System/Library/Frameworks", .{sr}) });
         }
+
         if (is_android) {
             const android_triple = switch (arch) {
                 .aarch64 => "aarch64-linux-android",
@@ -88,34 +88,38 @@ pub fn build(b: *std.Build) void {
         platform_flags[platform_flag_count] = "-D_XOPEN_SOURCE=600";
         platform_flag_count += 1;
     }
+
     if (os == .linux) {
         platform_flags[platform_flag_count] = "-D_GNU_SOURCE";
         platform_flag_count += 1;
     }
+
     if (is_darwin) {
         platform_flags[platform_flag_count] = "-D_DARWIN_C_SOURCE";
         platform_flag_count += 1;
     }
+
     if (is_freebsd) {
         platform_flags[platform_flag_count] = "-D__BSD_VISIBLE";
         platform_flag_count += 1;
     }
+
     if (is_netbsd) {
         platform_flags[platform_flag_count] = "-D_NETBSD_SOURCE";
         platform_flag_count += 1;
     }
+
     if (is_openbsd) {
         platform_flags[platform_flag_count] = "-D_BSD_SOURCE";
         platform_flag_count += 1;
     }
+
     if (is_windows) {
         platform_flags[platform_flag_count] = "-D_CRT_SECURE_NO_WARNINGS";
         platform_flag_count += 1;
     }
 
     const pf = platform_flags[0..platform_flag_count];
-
-    // ── ggml-base ────────────────────────────────────────────
 
     const base_version_flag = "-DGGML_VERSION=\"0.9.11\"";
     const base_commit_flag = "-DGGML_COMMIT=\"unknown\"";
@@ -152,6 +156,7 @@ pub fn build(b: *std.Build) void {
     {
         var cpp_flags_buf: [16][]const u8 = undefined;
         var cpp_count: usize = 0;
+
         cpp_flags_buf[cpp_count] = "-std=c++17";
         cpp_count += 1;
         cpp_flags_buf[cpp_count] = base_version_flag;
@@ -160,10 +165,12 @@ pub fn build(b: *std.Build) void {
         cpp_count += 1;
         cpp_flags_buf[cpp_count] = sched_copies_flag;
         cpp_count += 1;
+
         for (pf) |f| {
             cpp_flags_buf[cpp_count] = f;
             cpp_count += 1;
         }
+
         const cpp_flags = cpp_flags_buf[0..cpp_count];
 
         mod.addCSourceFiles(.{
@@ -182,20 +189,30 @@ pub fn build(b: *std.Build) void {
     {
         var reg_flags_buf: [16][]const u8 = undefined;
         var reg_count: usize = 0;
+
         reg_flags_buf[reg_count] = "-std=c++17";
         reg_count += 1;
+
         for (pf) |f| {
             reg_flags_buf[reg_count] = f;
             reg_count += 1;
         }
+
         if (opt_cpu) {
             reg_flags_buf[reg_count] = "-DGGML_USE_CPU";
             reg_count += 1;
         }
+
         if (opt_metal) {
             reg_flags_buf[reg_count] = "-DGGML_USE_METAL";
             reg_count += 1;
         }
+
+        if (opt_vulkan) {
+            reg_flags_buf[reg_count] = "-DGGML_USE_VULKAN";
+            reg_count += 1;
+        }
+
         const reg_flags = reg_flags_buf[0..reg_count];
 
         mod.addCSourceFiles(.{
@@ -224,6 +241,7 @@ pub fn build(b: *std.Build) void {
 
         cpu_c_flags_buf[cpu_c_count] = "-std=c11";
         cpu_c_count += 1;
+
         for (pf) |f| {
             cpu_c_flags_buf[cpu_c_count] = f;
             cpu_c_count += 1;
@@ -234,6 +252,7 @@ pub fn build(b: *std.Build) void {
 
         cpu_cpp_flags_buf[cpu_cpp_count] = "-std=c++17";
         cpu_cpp_count += 1;
+
         for (pf) |f| {
             cpu_cpp_flags_buf[cpu_cpp_count] = f;
             cpu_cpp_count += 1;
@@ -310,6 +329,7 @@ pub fn build(b: *std.Build) void {
                     const extra_avx512 = [_][]const u8{
                         "-mavx512cd", "-mavx512vl", "-mavx512dq", "-mavx512bw",
                     };
+
                     for (extra_avx512) |f| {
                         cpu_c_flags_buf[cpu_c_count] = f;
                         cpu_c_count += 1;
@@ -368,6 +388,7 @@ pub fn build(b: *std.Build) void {
                 .files = &.{"ggml-cpu/arch/x86/quants.c"},
                 .flags = cpu_c_flags,
             });
+
             mod.addCSourceFiles(.{
                 .root = ggml.path("src"),
                 .files = &.{"ggml-cpu/arch/x86/repack.cpp"},
@@ -379,6 +400,7 @@ pub fn build(b: *std.Build) void {
                 .files = &.{"ggml-cpu/arch/arm/quants.c"},
                 .flags = cpu_c_flags,
             });
+
             mod.addCSourceFiles(.{
                 .root = ggml.path("src"),
                 .files = &.{"ggml-cpu/arch/arm/repack.cpp"},
@@ -396,6 +418,7 @@ pub fn build(b: *std.Build) void {
                 .files = &.{"ggml-cpu/arch/riscv/quants.c"},
                 .flags = cpu_c_flags,
             });
+
             mod.addCSourceFiles(.{
                 .root = ggml.path("src"),
                 .files = &.{"ggml-cpu/arch/riscv/repack.cpp"},
@@ -428,10 +451,12 @@ pub fn build(b: *std.Build) void {
 
         metal_cpp_flags_buf[metal_cpp_count] = "-std=c++17";
         metal_cpp_count += 1;
+
         for (pf) |f| {
             metal_cpp_flags_buf[metal_cpp_count] = f;
             metal_cpp_count += 1;
         }
+
         if (opt_metal_embed) {
             metal_cpp_flags_buf[metal_cpp_count] = "-DGGML_METAL_EMBED_LIBRARY";
             metal_cpp_count += 1;
@@ -452,10 +477,12 @@ pub fn build(b: *std.Build) void {
 
         var metal_objc_flags_buf: [16][]const u8 = undefined;
         var metal_objc_count: usize = 0;
+
         for (pf) |f| {
             metal_objc_flags_buf[metal_objc_count] = f;
             metal_objc_count += 1;
         }
+
         if (opt_metal_embed) {
             metal_objc_flags_buf[metal_objc_count] = "-DGGML_METAL_EMBED_LIBRARY";
             metal_objc_count += 1;
@@ -495,6 +522,127 @@ pub fn build(b: *std.Build) void {
         }
     }
 
+    if (opt_vulkan) {
+        const vk_dep = b.dependency("build_vulkan", .{});
+        mod.addIncludePath(vk_dep.namedLazyPath("vulkan_include"));
+        mod.addIncludePath(vk_dep.namedLazyPath("vulkan_hpp_include"));
+
+        const vk_shader_defines = [_][]const u8{
+            "-DGGML_VULKAN_COOPMAT_GLSLC_SUPPORT",
+            "-DGGML_VULKAN_COOPMAT2_GLSLC_SUPPORT",
+            "-DGGML_VULKAN_INTEGER_DOT_GLSLC_SUPPORT",
+            "-DGGML_VULKAN_BFLOAT16_GLSLC_SUPPORT",
+            "-DVK_NV_cooperative_matrix",
+            "-DVK_NV_cooperative_matrix2",
+        };
+
+        var vk_cpp_flags_buf: [24][]const u8 = undefined;
+        var vk_cpp_count: usize = 0;
+
+        vk_cpp_flags_buf[vk_cpp_count] = "-std=c++17";
+        vk_cpp_count += 1;
+
+        for (pf) |f| {
+            vk_cpp_flags_buf[vk_cpp_count] = f;
+            vk_cpp_count += 1;
+        }
+
+        for (vk_shader_defines) |d| {
+            vk_cpp_flags_buf[vk_cpp_count] = d;
+            vk_cpp_count += 1;
+        }
+
+        const vk_cpp_flags = vk_cpp_flags_buf[0..vk_cpp_count];
+
+        mod.addCSourceFiles(.{
+            .root = ggml.path("src/ggml-vulkan"),
+            .files = &.{"ggml-vulkan.cpp"},
+            .flags = vk_cpp_flags,
+        });
+
+        const shaderc = b.dependency("build_shaderc", .{ .optimize = .ReleaseFast });
+        const glslc = shaderc.artifact("glslc");
+
+        const shaders_gen = b.addExecutable(.{
+            .name = "vulkan-shaders-gen",
+            .root_module = b.createModule(.{
+                .target = b.graph.host,
+                .optimize = .ReleaseFast,
+                .link_libc = true,
+                .link_libcpp = true,
+            }),
+        });
+
+        shaders_gen.root_module.addCSourceFiles(.{
+            .root = ggml.path("src/ggml-vulkan/vulkan-shaders"),
+            .files = &.{"vulkan-shaders-gen.cpp"},
+            .flags = &.{
+                "-std=c++17",
+                "-DGGML_VULKAN_COOPMAT_GLSLC_SUPPORT",
+                "-DGGML_VULKAN_COOPMAT2_GLSLC_SUPPORT",
+                "-DGGML_VULKAN_INTEGER_DOT_GLSLC_SUPPORT",
+                "-DGGML_VULKAN_BFLOAT16_GLSLC_SUPPORT",
+                "-DVK_NV_cooperative_matrix",
+                "-DVK_NV_cooperative_matrix2",
+                "-DCOOPMAT",
+                "-DCOOPMAT2",
+            },
+        });
+
+        const hpp_cmd = b.addRunArtifact(shaders_gen);
+        hpp_cmd.addArg("--glslc");
+
+        hpp_cmd.addFileArg(glslc.getEmittedBin());
+        hpp_cmd.addArg("--output-dir");
+
+        _ = hpp_cmd.addOutputDirectoryArg("vulkan-shaders");
+        hpp_cmd.addArg("--target-hpp");
+
+        const vk_hpp_file = hpp_cmd.addOutputFileArg("ggml-vulkan-shaders.hpp");
+
+        const vk_hpp_dir = vk_hpp_file.dirname();
+        mod.addIncludePath(vk_hpp_dir);
+
+        const shader_src_path = ggml.path("src/ggml-vulkan/vulkan-shaders");
+        const io = b.graph.io;
+
+        var shader_dir = std.Io.Dir.cwd().openDir(io, shader_src_path.getPath(b), .{ .iterate = true }) catch {
+            @panic("failed to open vulkan shaders dir");
+        };
+        defer shader_dir.close(io);
+
+        var dir_it = shader_dir.iterate();
+
+        while (dir_it.next(io) catch @panic("failed to iterate vulkan shaders")) |entry| {
+            if (std.mem.endsWith(u8, entry.name, ".comp")) {
+                const cpp_name = b.fmt("{s}.cpp", .{entry.name});
+                const cpp_cmd = b.addRunArtifact(shaders_gen);
+
+                cpp_cmd.addArg("--glslc");
+                cpp_cmd.addFileArg(glslc.getEmittedBin());
+
+                cpp_cmd.addArg("--source");
+                cpp_cmd.addFileArg(shader_src_path.path(b, entry.name));
+
+                cpp_cmd.addArg("--output-dir");
+                _ = cpp_cmd.addOutputDirectoryArg("vulkan-shaders");
+
+                cpp_cmd.addArg("--target-hpp");
+                cpp_cmd.addFileArg(vk_hpp_file);
+
+                cpp_cmd.addArg("--target-cpp");
+
+                const cpp_file = cpp_cmd.addOutputFileArg(cpp_name);
+
+                mod.addCSourceFile(.{
+                    .file = cpp_file,
+                    .flags = vk_cpp_flags,
+                });
+            }
+        }
+
+    }
+
     if (is_linux) {
         mod.linkSystemLibrary("dl", .{});
     }
@@ -509,11 +657,12 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+
     test_exe.root_module.addCSourceFile(.{
         .file = b.path("test/basic.c"),
     });
-    test_exe.root_module.linkLibrary(lib);
 
+    test_exe.root_module.linkLibrary(lib);
     const run_test = b.addRunArtifact(test_exe);
     const test_step = b.step("test", "Run basic tests");
     test_step.dependOn(&run_test.step);

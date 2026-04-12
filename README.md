@@ -1,3 +1,4 @@
+# zig-build-ggml
 
 ```sh
 zig fetch --save <url-to-this-repo>

@@ -8,6 +8,14 @@
             .url = "https://github.com/ggml-org/ggml/archive/58c3805840b516b2a88ff867ccf7bb41dba79951.tar.gz",
             .hash = "N-V-__8AAFNW_ACETcGqkTcn0Q4zNhvT4xJAsME08FO1wxPB",
         },
+        .build_shaderc = .{
+            .url = "https://github.com/brandtcormorant/zig-build-shaderc/archive/d8226292fb04ff3c603da8cc659917f65e459de4.tar.gz",
+            .hash = "build_shaderc-0.0.0-B2ZZRxARAADRVY8AUakTtga5Lp4TAP5AeaUyJVPvgEIz",
+        },
+        .build_vulkan = .{
+            .url = "https://github.com/brandtcormorant/zig-build-vulkan/archive/5db7e9157944f0219d9cfc5f97ce9450df9ad098.tar.gz",
+            .hash = "build_vulkan-0.0.0-dhirYLoLAAAwdGL_TrpH0rHnLE6qp-gbxCco1lfRgGyx",
+        },
     },
     .paths = .{
         "build.zig",
